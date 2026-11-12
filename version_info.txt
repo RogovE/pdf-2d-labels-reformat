@@ -14,7 +14,7 @@ VSVersionInfo(
       [
       StringTable(
         '040904B0',
-        [StringStruct('CompanyName', 'Eugene Rogov, Cioline.com'),
+        [StringStruct('CompanyName', 'Eugene Rogov, cioline.com'),
         StringStruct('FileDescription', 'Программа для обрезки 2D-кодов и создания этикеток'),
         StringStruct('FileVersion', '1.0.0.0'),
         StringStruct('InternalName', 'LabelCropper'),
