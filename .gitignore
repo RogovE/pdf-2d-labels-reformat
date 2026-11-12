@@ -1,0 +1,22 @@
+# Виртуальное окружение Python
+venv/
+.venv/
+
+# Временные папки сборки PyInstaller
+build/
+dist/
+*.spec
+
+# Системный кэш Python
+__pycache__/
+*.py[cod]
+
+# Рабочие папки с PDF-документами
+IN/
+OUT/
+Archive/
+*.pdf
+
+# Настройки редакторов кода (VS Code, PyCharm)
+.vscode/
+.idea/
