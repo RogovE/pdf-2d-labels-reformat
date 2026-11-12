@@ -5,12 +5,16 @@ import os
 import sys
 
 MM_TO_PT = 72 / 25.4
-PAGE_WIDTH = 42 * MM_TO_PT
+PAGE_WIDTH = 40 * MM_TO_PT
 PAGE_HEIGHT = 25 * MM_TO_PT
 
-LEFT_MARGIN = 2 * MM_TO_PT
-VERTICAL_MARGIN = 2 * MM_TO_PT
-MAX_CODE_SIZE = PAGE_HEIGHT - (2 * VERTICAL_MARGIN)
+LEFT_MARGIN = 8 * MM_TO_PT      # Отступ слева 8 мм
+RIGHT_MARGIN = 7 * MM_TO_PT     # Отступ справа 7 мм (4 мм + 3 мм) для номера страницы
+VERTICAL_MARGIN = 5 * MM_TO_PT  # Отступы сверху и снизу 5 мм для 2D-кода
+
+# Максимальная область под код: высота 15 мм, ширина с учетом нового отступа справа
+MAX_CODE_HEIGHT = PAGE_HEIGHT - (2 * VERTICAL_MARGIN)
+MAX_CODE_WIDTH = PAGE_WIDTH - LEFT_MARGIN - (12 * MM_TO_PT)
 
 def get_base_dir():
     if getattr(sys, 'frozen', False):
@@ -23,20 +27,18 @@ class CropSelectorWindow:
         self.doc = pymupdf.open(pdf_path)
         self.page = self.doc[0]
 
-        # Масштабируем первую страницу под экран, чтобы удобно было выделять
         screen_h = parent.winfo_screenheight()
         max_display_h = int(screen_h * 0.75)
         self.zoom = max_display_h / self.page.rect.height
-        self.zoom = max(1.0, min(self.zoom, 4.0))  # Ограничиваем масштаб от 1x до 4x
+        self.zoom = max(1.0, min(self.zoom, 4.0))
 
         pix = self.page.get_pixmap(matrix=pymupdf.Matrix(self.zoom, self.zoom))
         img_data = pix.tobytes("ppm")
 
         self.win = tk.Toplevel(parent)
         self.win.title("Выделите мышкой область кода (без рамки)")
-        self.win.grab_set()  # Блокируем другие окна до завершения выбора
+        self.win.grab_set()
 
-        # Подсказка сверху
         lbl = tk.Label(
             self.win,
             text="Зажмите левую кнопку мыши и обведите сам 2D-код внутри рамки.\nОтпустите кнопку, чтобы подтвердить выбор.",
@@ -45,7 +47,6 @@ class CropSelectorWindow:
         )
         lbl.pack()
 
-        # Холст с изображением первой страницы
         self.canvas = tk.Canvas(self.win, width=pix.width, height=pix.height, cursor="cross")
         self.canvas.pack()
 
@@ -60,7 +61,6 @@ class CropSelectorWindow:
         self.canvas.bind("<B1-Motion>", self.on_drag)
         self.canvas.bind("<ButtonRelease-1>", self.on_release)
 
-        # Центрируем окно на экране
         self.win.update_idletasks()
         x = (parent.winfo_screenwidth() - self.win.winfo_width()) // 2
         y = (parent.winfo_screenheight() - self.win.winfo_height()) // 2
@@ -89,11 +89,9 @@ class CropSelectorWindow:
         x1 = max(self.start_x, event.x)
         y1 = max(self.start_y, event.y)
 
-        # Защита от случайного клика без протяжки
         if (x1 - x0) < 10 or (y1 - y0) < 10:
             return
 
-        # Переводим экранные координаты обратно в координаты PDF-пунктов
         self.selected_rect = pymupdf.Rect(
             x0 / self.zoom,
             y0 / self.zoom,
@@ -104,24 +102,49 @@ class CropSelectorWindow:
 
 def process_pdf_with_crop(input_path, output_path, crop_rect):
     src_doc = pymupdf.open(input_path)
+    total_pages = len(src_doc)
+
+    if total_pages > 999:
+        src_doc.close()
+        raise ValueError(f"В документе {total_pages} стр. Максимально допустимо: 999 стр.")
+
     out_doc = pymupdf.open()
 
     aspect_ratio = crop_rect.width / crop_rect.height if crop_rect.height > 0 else 1
 
-    if aspect_ratio >= 1:
-        target_w = min(MAX_CODE_SIZE, PAGE_WIDTH - 2 * LEFT_MARGIN)
+    target_h = MAX_CODE_HEIGHT
+    target_w = target_h * aspect_ratio
+    if target_w > MAX_CODE_WIDTH:
+        target_w = MAX_CODE_WIDTH
         target_h = target_w / aspect_ratio
-    else:
-        target_h = MAX_CODE_SIZE
-        target_w = target_h * aspect_ratio
 
     x0 = LEFT_MARGIN
     y0 = (PAGE_HEIGHT - target_h) / 2
     target_rect = pymupdf.Rect(x0, y0, x0 + target_w, y0 + target_h)
 
-    for page_num in range(len(src_doc)):
+    font_size = 9
+    font_name = "helv"
+
+    for page_num in range(total_pages):
         new_page = out_doc.new_page(width=PAGE_WIDTH, height=PAGE_HEIGHT)
         new_page.show_pdf_page(target_rect, src_doc, page_num, clip=crop_rect)
+
+        page_text = str(page_num + 1)
+        text_width = pymupdf.get_text_length(page_text, fontname=font_name, fontsize=font_size)
+
+        # Координата X: отступ 7 мм от правого края
+        text_x = PAGE_WIDTH - RIGHT_MARGIN
+        # Координата Y: центр этикетки по вертикали
+        text_y = (PAGE_HEIGHT + text_width) / 2
+
+        new_page.insert_text(
+            pymupdf.Point(text_x, text_y),
+            page_text,
+            fontsize=font_size,
+            fontname=font_name,
+            rotate=90,
+            color=(0, 0, 0)
+        )
 
     out_doc.save(output_path)
     count = len(out_doc)
@@ -137,7 +160,6 @@ def main():
     in_dir = os.path.join(base_dir, "IN")
     os.makedirs(in_dir, exist_ok=True)
 
-    # 1. Выбираем исходный файл из папки IN
     input_path = filedialog.askopenfilename(
         title="Выберите исходный PDF с кодами",
         initialdir=in_dir,
@@ -146,12 +168,10 @@ def main():
     if not input_path:
         return
 
-    # 2. Открываем окно ручного выделения области
     selector = CropSelectorWindow(root, input_path)
     if not selector.selected_rect:
-        return  # Пользователь закрыл окно, не выделив область
+        return
 
-    # 3. Выбираем куда сохранить результат
     default_name = os.path.splitext(os.path.basename(input_path))[0] + "_labels.pdf"
     output_path = filedialog.asksaveasfilename(
         title="Сохранить этикетки как...",
@@ -163,7 +183,6 @@ def main():
     if not output_path:
         return
 
-    # 4. Обрабатываем все страницы по выбранной области
     try:
         pages_count = process_pdf_with_crop(input_path, output_path, selector.selected_rect)
         messagebox.showinfo("Готово!", f"Успешно создано этикеток: {pages_count}")
@@ -172,3 +191,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
