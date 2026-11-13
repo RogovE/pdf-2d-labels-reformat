@@ -1,6 +1,12 @@
+"""
+Производит вырезание и переформатирование этикеток из PDF (2D-коды)
+Copyright (c) 2026 Eugene Rogov
+Лицензия: MIT (подробности в файле LICENSE)
+"""
+
 import pymupdf
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import messagebox
 import os
 import sys
 import shutil
@@ -23,13 +29,14 @@ def get_base_dir():
     return os.path.dirname(os.path.abspath(__file__))
 
 class CropSelectorWindow:
-    def __init__(self, parent, pdf_path):
+    def __init__(self, parent, pdf_path, current_idx, total_files):
         self.selected_rect = None
+        self.cancel_all = False  # Флаг полной отмены очереди
         self.doc = pymupdf.open(pdf_path)
         self.page = self.doc[0]
 
         screen_h = parent.winfo_screenheight()
-        max_display_h = int(screen_h * 0.75)
+        max_display_h = int(screen_h * 0.72)  # Чуть уменьшили высоту под нижнюю панель с кнопкой
         self.zoom = max_display_h / self.page.rect.height
         self.zoom = max(1.0, min(self.zoom, 4.0))
 
@@ -38,12 +45,12 @@ class CropSelectorWindow:
 
         self.win = tk.Toplevel(parent)
         filename = os.path.basename(pdf_path)
-        self.win.title(f"Выделите область кода: {filename}")
+        self.win.title(f"[{current_idx} из {total_files}] Выделите область кода: {filename}")
         self.win.grab_set()
 
         lbl = tk.Label(
             self.win,
-            text=f"Файл: {filename}\nЗажмите левую кнопку мыши и обведите сам 2D-код внутри рамки.\nОтпустите кнопку, чтобы подтвердить выбор.",
+            text=f"Файл {current_idx} из {total_files}: {filename}\nЗажмите левую кнопку мыши и обведите сам 2D-код внутри рамки.",
             font=("Arial", 10, "bold"),
             pady=8
         )
@@ -54,6 +61,24 @@ class CropSelectorWindow:
 
         self.tk_img = tk.PhotoImage(data=img_data)
         self.canvas.create_image(0, 0, anchor="nw", image=self.tk_img)
+
+        # Нижняя панель с кнопкой полной отмены
+        btn_frame = tk.Frame(self.win, pady=8)
+        btn_frame.pack(fill="x")
+
+        cancel_btn = tk.Button(
+            btn_frame,
+            text="Отменить всё",
+            command=self.on_cancel_all,
+            font=("Arial", 9, "bold"),
+            fg="white",
+            bg="#d9534f",
+            activebackground="#c9302c",
+            activeforeground="white",
+            padx=14,
+            pady=4
+        )
+        cancel_btn.pack()
 
         self.start_x = None
         self.start_y = None
@@ -70,6 +95,10 @@ class CropSelectorWindow:
 
         parent.wait_window(self.win)
         self.doc.close()
+
+    def on_cancel_all(self):
+        self.cancel_all = True
+        self.win.destroy()
 
     def on_press(self, event):
         self.start_x = event.x
@@ -165,7 +194,6 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
     os.makedirs(done_dir, exist_ok=True)
 
-    # Собираем все PDF-файлы непосредственно из папки IN (игнорируя подпапки)
     pdf_files = sorted([
         f for f in os.listdir(in_dir)
         if f.lower().endswith(".pdf") and os.path.isfile(os.path.join(in_dir, f))
@@ -175,11 +203,11 @@ def main():
         messagebox.showinfo("Информация", "В папке IN нет PDF-файлов для обработки.")
         return
 
-    # Предупреждаем, если файлов больше 1
-    if len(pdf_files) > 1:
+    total_files = len(pdf_files)
+    if total_files > 1:
         proceed = messagebox.askyesno(
             "Обнаружено несколько файлов",
-            f"В папке IN найдено файлов: {len(pdf_files)} шт.\n"
+            f"В папке IN найдено файлов: {total_files} шт.\n"
             f"Они будут обработаны последовательно друг за другом.\n\nПродолжить?"
         )
         if not proceed:
@@ -187,14 +215,16 @@ def main():
 
     processed_summary = []
 
-    for filename in pdf_files:
+    for idx, filename in enumerate(pdf_files, start=1):
         input_path = os.path.join(in_dir, filename)
 
-        # Открываем окно выделения области для текущего файла
-        selector = CropSelectorWindow(root, input_path)
+        selector = CropSelectorWindow(root, input_path, idx, total_files)
+        
+        if selector.cancel_all:
+            break  # Полностью прерываем пакетную обработку
+
         if not selector.selected_rect:
-            # Если пользователь закрыл окно крестиком, пропускаем текущий файл
-            continue
+            continue  # Закрытие окна крестиком пропускает только текущий файл
 
         base_name = os.path.splitext(filename)[0]
         output_path = os.path.join(out_dir, f"{base_name}_labels.pdf")
@@ -203,7 +233,6 @@ def main():
         try:
             pages_count = process_pdf_with_crop(input_path, output_path, selector.selected_rect)
 
-            # Перемещаем исходный файл в IN\Done (если там уже есть файл с таким именем, перезаписываем)
             if os.path.exists(done_path):
                 os.remove(done_path)
             shutil.move(input_path, done_path)
@@ -212,7 +241,6 @@ def main():
         except Exception as e:
             messagebox.showerror("Ошибка обработки", f"Не удалось обработать файл {filename}:\n{e}")
 
-    # Итоговое уведомление по всем обработанным файлам
     if processed_summary:
         summary_text = "\n".join(processed_summary)
         messagebox.showinfo(

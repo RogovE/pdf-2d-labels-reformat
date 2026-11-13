@@ -1,5 +1,6 @@
 VSVersionInfo(
   ffi=FixedFileInfo(
+    # Номер версии в формате (Major, Minor, Patch, Build)
     filevers=(1, 0, 0, 0),
     prodvers=(1, 0, 0, 0),
     mask=0x3f,
@@ -13,17 +14,19 @@ VSVersionInfo(
     StringFileInfo(
       [
       StringTable(
-        '040904B0',
-        [StringStruct('CompanyName', 'Eugene Rogov, cioline.com'),
-        StringStruct('FileDescription', 'Программа для обрезки 2D-кодов и создания этикеток'),
-        StringStruct('FileVersion', '3.0.0.0'),
-        StringStruct('InternalName', 'LabelCropper'),
-        StringStruct('LegalCopyright', '© 2026 Ваше Имя. Все права защищены.'),
-        StringStruct('OriginalFilename', 'LabelCropper.exe'),
-        StringStruct('ProductName', 'LabelCropper'),
-        StringStruct('ProductVersion', '3.0.0.0')])
+        u'041904B0',  # Кодировка для русского языка (UTF-16LE)
+        [
+          StringStruct(u'CompanyName', u'Eugene Rogov'),
+          StringStruct(u'FileDescription', u'Генератор этикеток из PDF (2D-коды)'),
+          StringStruct(u'FileVersion', u'1.0.0.0'),
+          StringStruct(u'InternalName', u'Pdf2DLabelReformat'),
+          StringStruct(u'LegalCopyright', u'Copyright (c) 2026 Eugene Rogov. Лицензия MIT'),
+          StringStruct(u'OriginalFilename', u'Pdf2DLabelReformat.exe'),
+          StringStruct(u'ProductName', u'Генератор этикеток из PDF'),
+          StringStruct(u'ProductVersion', u'1.0.0.0')
+        ])
       ]
     ),
-    VarFileInfo([VarStruct('Translation', [1033, 1200])])
+    VarFileInfo([VarStruct(u'Translation', [0x0419, 1200])])
   ]
 )
