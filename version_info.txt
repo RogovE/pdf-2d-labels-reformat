@@ -16,12 +16,12 @@ VSVersionInfo(
         '040904B0',
         [StringStruct('CompanyName', 'Eugene Rogov, cioline.com'),
         StringStruct('FileDescription', 'Программа для обрезки 2D-кодов и создания этикеток'),
-        StringStruct('FileVersion', '2.0.0.0'),
+        StringStruct('FileVersion', '3.0.0.0'),
         StringStruct('InternalName', 'LabelCropper'),
         StringStruct('LegalCopyright', '© 2026 Ваше Имя. Все права защищены.'),
         StringStruct('OriginalFilename', 'LabelCropper.exe'),
         StringStruct('ProductName', 'LabelCropper'),
-        StringStruct('ProductVersion', '2.0.0.0')])
+        StringStruct('ProductVersion', '3.0.0.0')])
       ]
     ),
     VarFileInfo([VarStruct('Translation', [1033, 1200])])
